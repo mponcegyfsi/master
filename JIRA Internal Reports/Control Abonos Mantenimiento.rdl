@@ -1151,7 +1151,9 @@
                               <TextRuns>
                                 <TextRun>
                                   <Value>=Fields!Abono_Uso_Indistinto.Value</Value>
-                                  <Style />
+                                  <Style>
+                                    <FontWeight>Bold</FontWeight>
+                                  </Style>
                                 </TextRun>
                               </TextRuns>
                               <Style />
