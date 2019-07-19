@@ -1100,7 +1100,9 @@
                               <TextRuns>
                                 <TextRun>
                                   <Value>=Fields!Cliente.Value</Value>
-                                  <Style />
+                                  <Style>
+                                    <FontWeight>Bold</FontWeight>
+                                  </Style>
                                 </TextRun>
                               </TextRuns>
                               <Style />
