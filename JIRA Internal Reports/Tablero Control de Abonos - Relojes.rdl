@@ -1,0 +1,1662 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Report MustUnderstand="df" xmlns="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition" xmlns:rd="http://schemas.microsoft.com/SQLServer/reporting/reportdesigner" xmlns:df="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition/defaultfontfamily">
+  <df:DefaultFontFamily>Segoe UI</df:DefaultFontFamily>
+  <AutoRefresh>0</AutoRefresh>
+  <DataSources>
+    <DataSource Name="JIRA">
+      <DataSourceReference>JIRA</DataSourceReference>
+      <rd:SecurityType>None</rd:SecurityType>
+      <rd:DataSourceID>a5c1744a-26a3-45af-bf13-8356c9cba0ba</rd:DataSourceID>
+    </DataSource>
+  </DataSources>
+  <DataSets>
+    <DataSet Name="Control_Abonos">
+      <Query>
+        <DataSourceName>JIRA</DataSourceName>
+        <QueryParameters>
+          <QueryParameter Name="@FECHA_DESDE">
+            <Value>=Parameters!FECHA_DESDE.Value</Value>
+          </QueryParameter>
+          <QueryParameter Name="@FECHA_HASTA">
+            <Value>=Parameters!FECHA_HASTA.Value</Value>
+          </QueryParameter>
+        </QueryParameters>
+        <CommandText>SELECT
+		   H.*,
+		   TAR.IDTAREA,
+		   TAR.DESCRIPCION AS TAREA,
+		   CG.RSOC AS CLIENTE,
+		   CG.ID AS IDCLIENTE
+
+
+	INTO #TMP_HORAS
+	FROM JIRASCHEMA.WORKLOG H
+
+	INNER JOIN JIRASCHEMA.JIRAISSUE				  AS T		ON H.ISSUEID					  = T.ID
+	INNER JOIN JIRASCHEMA.PROJECT				  AS P		ON T.PROJECT					  = P.ID
+	INNER  JOIN jiraschema.AO_013613_WA_VALUE	  AS ta		ON H.ID							  = tA.WORKLOG_ID	AND tA.WORK_ATTRIBUTE_ID = 13
+	INNER  JOIN [GYF10\SQL2005].GYFSI.DBO.tarea	  AS tar	ON convert(varchar,ta.value)	  = tar.IDTAREA
+	INNER  JOIN JIRASCHEMA.CUSTOMFIELDVALUE		  AS CJ		ON T.ID							  = CJ.ISSUE		AND CJ.CUSTOMFIELD		 = 10222 -- CAMPO CLIENTE
+	INNER  JOIN JIRASCHEMA.customfieldoption	  AS CD		ON CJ.CUSTOMFIELD				  = CD.CUSTOMFIELD  AND CJ.STRINGVALUE		 = CD.ID
+	INNER  JOIN [GYF10\SQL2005].gyfsi.DBO._CLI	  AS CG		ON CONVERT(INT,CJ.STRINGVALUE)	  = CG.CLIENTE_JIRA
+	INNER  JOIN jiraschema.customfieldvalue		  AS CT		ON CT.ISSUE						  = T.ID			AND CT.CUSTOMFIELD = 10307	-- tipo_gestion
+
+	WHERE P.ID IN (10000,10101) AND H.STARTDATE BETWEEN @FECHA_DESDE AND @FECHA_HASTA AND CG.ID &lt;&gt; 999 AND CT.STRINGVALUE NOT IN (10208,11600) -- QUE NO SEA PRESUPUESTO NI NUEVOS PROYECTOS
+
+
+	SELECT
+		   Cliente,
+		  -- IDCLIENTE,
+		   
+		   
+		   CASE WHEN IDCLIENTE IN (112,106) -- NBCH Y BTDF - EL ABONO ES DE USO INDISTINTO
+		   THEN
+		   (
+			  SELECT ISNULL(HORAS,0)
+			  FROM [GYF10\SQL2005].GYFSI.DBO.PROYECTO 
+			  WHERE IDCLIENTE = A.IDCLIENTE AND IDPROYECTO &lt;&gt; 307 AND IDSISTEMAPADRE = 18 AND TIPOCARGAHORA = 1
+		   ) 
+		   ELSE 0
+		   END 
+		   AS [Abono Uso Indistinto],
+
+		   SUM(CONVERT(INT,ISNULL(TIMEWORKED,0))/60/60) [Horas Totales Cargadas],
+		
+		   CASE IDCLIENTE 
+				WHEN 121 -- BICA
+				THEN 56
+				WHEN 31  -- CORRIENTES
+				THEN 16
+				WHEN 49  -- FORMOSA
+				THEN 160
+				WHEN 105 -- SAENZ
+				THEN 20
+				WHEN 120 --CHUBUT
+				THEN 24
+				WHEN 109 -- MAS VENTAS
+				THEN 20
+				WHEN 123 -- LA RIOJA
+				THEN 20
+				WHEN 124 -- TSA
+				THEN 20
+				WHEN 113 -- BMR
+				THEN 300
+				WHEN 110 -- BERSA
+				THEN 30
+			ELSE 0
+			END AS [Abono Desarrollo],
+
+		  (
+		   SELECT ISNULL(SUM(CONVERT(INT,ISNULL(TIMEWORKED,0))/60/60),0)
+		   FROM #TMP_HORAS
+		   WHERE IDTAREA IN (74,37,18,57,60,2,38,50,7,4,62,23,49,48,47,45,8,69,61,3) -- Tareas Desarrollo
+				 AND IDCLIENTE = A.IDCLIENTE
+		   ) AS Desarrollo,
+
+			CASE IDCLIENTE 
+				WHEN 120 --CHUBUT
+				THEN 8
+				WHEN 49  -- FORMOSA
+				THEN 40
+				WHEN 113 -- BMR
+				THEN 70
+			ELSE 0
+			END AS [Abono Análisis],
+
+
+		   (
+		   SELECT ISNULL(SUM(CONVERT(INT,ISNULL(TIMEWORKED,0))/60/60),0)
+		   FROM #TMP_HORAS
+		   WHERE IDTAREA IN (13,29,46,68,1,44,34) -- Tareas Análisis
+				 AND IDCLIENTE = A.IDCLIENTE
+		   ) AS [Analista Funcional],
+		   
+		   (
+		   SELECT ISNULL(SUM(CONVERT(INT,ISNULL(TIMEWORKED,0))/60/60),0)
+		   FROM #TMP_HORAS
+		   WHERE IDTAREA IN (58,67,53,51) -- Tareas Project Leader
+				 AND IDCLIENTE = A.IDCLIENTE
+		   ) AS [Projec Leader],
+		   (
+		   SELECT ISNULL(SUM(CONVERT(INT,ISNULL(TIMEWORKED,0))/60/60),0)
+		   FROM #TMP_HORAS
+		   WHERE IDTAREA IN (15,54,52) -- Tareas Project Manager
+				 AND IDCLIENTE = A.IDCLIENTE
+		   ) AS [Projec Manager],
+		   (
+		   SELECT ISNULL(SUM(CONVERT(INT,ISNULL(TIMEWORKED,0))/60/60),0)
+		   FROM #TMP_HORAS
+		   WHERE IDTAREA IN (71,41) -- Tareas DBA
+				 AND IDCLIENTE = A.IDCLIENTE
+		   ) AS DBA,
+		   (
+		   SELECT ISNULL(SUM(CONVERT(INT,ISNULL(TIMEWORKED,0))/60/60),0)
+		   FROM #TMP_HORAS
+		   WHERE IDTAREA IN (65,66,56,35) -- Tareas Arquitecto
+				 AND IDCLIENTE = A.IDCLIENTE
+		   ) AS Arquitecto,
+		   (
+		   SELECT ISNULL(SUM(CONVERT(INT,ISNULL(TIMEWORKED,0))/60/60),0)
+		   FROM #TMP_HORAS
+		   WHERE IDTAREA IN (64,63,70,42,43) -- Tareas Analista DevOps
+				 AND IDCLIENTE = A.IDCLIENTE
+		   ) AS [Analista DevOps],
+		   (
+		   SELECT ISNULL(SUM(CONVERT(INT,ISNULL(TIMEWORKED,0))/60/60),0)
+		   FROM #TMP_HORAS
+		   WHERE IDTAREA IN (73) -- Tareas Administración
+				 AND IDCLIENTE = A.IDCLIENTE
+		   ) AS Administración,
+		   (
+		   SELECT ISNULL(SUM(CONVERT(INT,ISNULL(TIMEWORKED,0))/60/60),0)
+		   FROM #TMP_HORAS
+		   WHERE IDTAREA IN (72) -- Tareas RRHH
+				 AND IDCLIENTE = A.IDCLIENTE
+		   ) AS RRHH,
+
+		   CASE WHEN IDCLIENTE = 112 -- NBCH - EL ABONO ES DE USO INDISTINTO
+		   THEN 1
+		   ELSE 0
+		   END 
+		   AS [Incluye todas las tareas]
+
+	FROM #TMP_HORAS A
+
+	GROUP BY CLIENTE,IDCLIENTE
+
+	ORDER BY CLIENTE
+
+	-- Borro la tabla temporal --
+
+	DROP TABLE #TMP_HORAS
+
+</CommandText>
+      </Query>
+      <Fields>
+        <Field Name="Cliente">
+          <DataField>Cliente</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="Abono_Uso_Indistinto">
+          <DataField>Abono Uso Indistinto</DataField>
+          <rd:TypeName>System.Decimal</rd:TypeName>
+        </Field>
+        <Field Name="Horas_Totales_Cargadas">
+          <DataField>Horas Totales Cargadas</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+        <Field Name="Abono_Desarrollo">
+          <DataField>Abono Desarrollo</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+        <Field Name="Desarrollo">
+          <DataField>Desarrollo</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+        <Field Name="Abono_Análisis">
+          <DataField>Abono Análisis</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+        <Field Name="Analista_Funcional">
+          <DataField>Analista Funcional</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+        <Field Name="Projec_Leader">
+          <DataField>Projec Leader</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+        <Field Name="Projec_Manager">
+          <DataField>Projec Manager</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+        <Field Name="DBA">
+          <DataField>DBA</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+        <Field Name="Arquitecto">
+          <DataField>Arquitecto</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+        <Field Name="Analista_DevOps">
+          <DataField>Analista DevOps</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+        <Field Name="Administración">
+          <DataField>Administración</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+        <Field Name="RRHH">
+          <DataField>RRHH</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+        <Field Name="Incluye_todas_las_tareas">
+          <DataField>Incluye todas las tareas</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+      </Fields>
+    </DataSet>
+  </DataSets>
+  <ReportSections>
+    <ReportSection>
+      <Body>
+        <ReportItems>
+          <Tablix Name="Tablix1">
+            <TablixBody>
+              <TablixColumns>
+                <TablixColumn>
+                  <Width>5.90431cm</Width>
+                </TablixColumn>
+                <TablixColumn>
+                  <Width>8.65597cm</Width>
+                </TablixColumn>
+                <TablixColumn>
+                  <Width>8.73535cm</Width>
+                </TablixColumn>
+                <TablixColumn>
+                  <Width>3.32021cm</Width>
+                </TablixColumn>
+              </TablixColumns>
+              <TablixRows>
+                <TablixRow>
+                  <Height>0.66615cm</Height>
+                  <TablixCells>
+                    <TablixCell>
+                      <CellContents>
+                        <Textbox Name="Textbox1">
+                          <CanGrow>true</CanGrow>
+                          <KeepTogether>true</KeepTogether>
+                          <Paragraphs>
+                            <Paragraph>
+                              <TextRuns>
+                                <TextRun>
+                                  <Value>Cliente</Value>
+                                  <Style>
+                                    <FontSize>12pt</FontSize>
+                                    <FontWeight>Bold</FontWeight>
+                                    <Color>White</Color>
+                                  </Style>
+                                </TextRun>
+                              </TextRuns>
+                              <Style>
+                                <TextAlign>Center</TextAlign>
+                              </Style>
+                            </Paragraph>
+                          </Paragraphs>
+                          <rd:DefaultName>Textbox1</rd:DefaultName>
+                          <Style>
+                            <Border>
+                              <Style>Solid</Style>
+                            </Border>
+                            <TopBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </TopBorder>
+                            <BottomBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </BottomBorder>
+                            <LeftBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </LeftBorder>
+                            <RightBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </RightBorder>
+                            <BackgroundColor>CornflowerBlue</BackgroundColor>
+                            <VerticalAlign>Middle</VerticalAlign>
+                            <PaddingLeft>2pt</PaddingLeft>
+                            <PaddingRight>2pt</PaddingRight>
+                            <PaddingTop>2pt</PaddingTop>
+                            <PaddingBottom>2pt</PaddingBottom>
+                          </Style>
+                        </Textbox>
+                      </CellContents>
+                    </TablixCell>
+                    <TablixCell>
+                      <CellContents>
+                        <Textbox Name="Textbox3">
+                          <CanGrow>true</CanGrow>
+                          <KeepTogether>true</KeepTogether>
+                          <Paragraphs>
+                            <Paragraph>
+                              <TextRuns>
+                                <TextRun>
+                                  <Value>Abono Análisis</Value>
+                                  <Style>
+                                    <FontSize>12pt</FontSize>
+                                    <FontWeight>Bold</FontWeight>
+                                    <Color>White</Color>
+                                  </Style>
+                                </TextRun>
+                              </TextRuns>
+                              <Style>
+                                <TextAlign>Center</TextAlign>
+                              </Style>
+                            </Paragraph>
+                          </Paragraphs>
+                          <rd:DefaultName>Textbox3</rd:DefaultName>
+                          <Style>
+                            <Border>
+                              <Style>Solid</Style>
+                            </Border>
+                            <TopBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </TopBorder>
+                            <BottomBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </BottomBorder>
+                            <LeftBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </LeftBorder>
+                            <RightBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </RightBorder>
+                            <BackgroundColor>CornflowerBlue</BackgroundColor>
+                            <VerticalAlign>Middle</VerticalAlign>
+                            <PaddingLeft>2pt</PaddingLeft>
+                            <PaddingRight>2pt</PaddingRight>
+                            <PaddingTop>2pt</PaddingTop>
+                            <PaddingBottom>2pt</PaddingBottom>
+                          </Style>
+                        </Textbox>
+                      </CellContents>
+                    </TablixCell>
+                    <TablixCell>
+                      <CellContents>
+                        <Textbox Name="Textbox5">
+                          <CanGrow>true</CanGrow>
+                          <KeepTogether>true</KeepTogether>
+                          <Paragraphs>
+                            <Paragraph>
+                              <TextRuns>
+                                <TextRun>
+                                  <Value>Abono Desarrollo</Value>
+                                  <Style>
+                                    <FontSize>12pt</FontSize>
+                                    <FontWeight>Bold</FontWeight>
+                                    <Color>White</Color>
+                                  </Style>
+                                </TextRun>
+                              </TextRuns>
+                              <Style>
+                                <TextAlign>Center</TextAlign>
+                              </Style>
+                            </Paragraph>
+                          </Paragraphs>
+                          <rd:DefaultName>Textbox5</rd:DefaultName>
+                          <Style>
+                            <Border>
+                              <Style>Solid</Style>
+                            </Border>
+                            <TopBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </TopBorder>
+                            <BottomBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </BottomBorder>
+                            <LeftBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </LeftBorder>
+                            <RightBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </RightBorder>
+                            <BackgroundColor>CornflowerBlue</BackgroundColor>
+                            <VerticalAlign>Middle</VerticalAlign>
+                            <PaddingLeft>2pt</PaddingLeft>
+                            <PaddingRight>2pt</PaddingRight>
+                            <PaddingTop>2pt</PaddingTop>
+                            <PaddingBottom>2pt</PaddingBottom>
+                          </Style>
+                        </Textbox>
+                      </CellContents>
+                    </TablixCell>
+                    <TablixCell>
+                      <CellContents>
+                        <Textbox Name="Textbox2">
+                          <CanGrow>true</CanGrow>
+                          <KeepTogether>true</KeepTogether>
+                          <Paragraphs>
+                            <Paragraph>
+                              <TextRuns>
+                                <TextRun>
+                                  <Value>P. Leader</Value>
+                                  <Style>
+                                    <FontSize>12pt</FontSize>
+                                    <FontWeight>Bold</FontWeight>
+                                    <Color>White</Color>
+                                  </Style>
+                                </TextRun>
+                              </TextRuns>
+                              <Style>
+                                <TextAlign>Center</TextAlign>
+                              </Style>
+                            </Paragraph>
+                          </Paragraphs>
+                          <rd:DefaultName>Textbox2</rd:DefaultName>
+                          <Style>
+                            <Border>
+                              <Style>Solid</Style>
+                            </Border>
+                            <TopBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </TopBorder>
+                            <BottomBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </BottomBorder>
+                            <LeftBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </LeftBorder>
+                            <RightBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </RightBorder>
+                            <BackgroundColor>CornflowerBlue</BackgroundColor>
+                            <VerticalAlign>Middle</VerticalAlign>
+                            <PaddingLeft>2pt</PaddingLeft>
+                            <PaddingRight>2pt</PaddingRight>
+                            <PaddingTop>2pt</PaddingTop>
+                            <PaddingBottom>2pt</PaddingBottom>
+                          </Style>
+                        </Textbox>
+                      </CellContents>
+                    </TablixCell>
+                  </TablixCells>
+                </TablixRow>
+                <TablixRow>
+                  <Height>4.9524cm</Height>
+                  <TablixCells>
+                    <TablixCell>
+                      <CellContents>
+                        <Textbox Name="Cliente">
+                          <CanGrow>true</CanGrow>
+                          <KeepTogether>true</KeepTogether>
+                          <Paragraphs>
+                            <Paragraph>
+                              <TextRuns>
+                                <TextRun>
+                                  <Value>=Fields!Cliente.Value</Value>
+                                  <Style>
+                                    <FontSize>12pt</FontSize>
+                                    <FontWeight>Bold</FontWeight>
+                                    <Color>CornflowerBlue</Color>
+                                  </Style>
+                                </TextRun>
+                              </TextRuns>
+                              <Style>
+                                <TextAlign>Center</TextAlign>
+                              </Style>
+                            </Paragraph>
+                          </Paragraphs>
+                          <rd:DefaultName>Cliente</rd:DefaultName>
+                          <Style>
+                            <Border>
+                              <Style>Solid</Style>
+                            </Border>
+                            <TopBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </TopBorder>
+                            <BottomBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </BottomBorder>
+                            <LeftBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </LeftBorder>
+                            <RightBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </RightBorder>
+                            <VerticalAlign>Middle</VerticalAlign>
+                            <PaddingLeft>2pt</PaddingLeft>
+                            <PaddingRight>2pt</PaddingRight>
+                            <PaddingTop>2pt</PaddingTop>
+                            <PaddingBottom>2pt</PaddingBottom>
+                          </Style>
+                        </Textbox>
+                      </CellContents>
+                    </TablixCell>
+                    <TablixCell>
+                      <CellContents>
+                        <GaugePanel Name="GaugePanel3">
+                          <RadialGauges>
+                            <RadialGauge Name="RadialGauge1">
+                              <GaugeScales>
+                                <RadialScale Name="RadialScale1">
+                                  <GaugePointers>
+                                    <RadialPointer Name="RadialPointer1">
+                                      <Type>Bar</Type>
+                                      <PointerCap>
+                                        <Style>
+                                          <BackgroundColor>White</BackgroundColor>
+                                          <BackgroundGradientType>DiagonalLeft</BackgroundGradientType>
+                                          <BackgroundGradientEndColor>DimGray</BackgroundGradientEndColor>
+                                          <FontFamily>Arial</FontFamily>
+                                          <BackgroundHatchType>None</BackgroundHatchType>
+                                        </Style>
+                                        <CapImage>
+                                          <OffsetX>0pt</OffsetX>
+                                          <OffsetY>0pt</OffsetY>
+                                          <Source>External</Source>
+                                          <Value />
+                                        </CapImage>
+                                        <OnTop>true</OnTop>
+                                        <CapStyle>RoundedWithWideIndentation</CapStyle>
+                                        <Width>33</Width>
+                                      </PointerCap>
+                                      <NeedleStyle>Tapered</NeedleStyle>
+                                      <Style>
+                                        <Border>
+                                          <Style>None</Style>
+                                        </Border>
+                                        <BackgroundColor>#01b8aa</BackgroundColor>
+                                        <BackgroundGradientType>None</BackgroundGradientType>
+                                        <BackgroundGradientEndColor>Orange</BackgroundGradientEndColor>
+                                        <BackgroundHatchType>None</BackgroundHatchType>
+                                        <ShadowOffset>0pt</ShadowOffset>
+                                      </Style>
+                                      <GaugeInputValue>
+                                        <Value>=iif(Fields!Abono_Análisis.Value &lt;&gt; 0,Fields!Analista_Funcional.Value/Fields!Abono_Análisis.Value,0)</Value>
+                                        <Multiplier>1</Multiplier>
+                                      </GaugeInputValue>
+                                      <PointerImage>
+                                        <OffsetX>0pt</OffsetX>
+                                        <OffsetY>0pt</OffsetY>
+                                        <Source>External</Source>
+                                        <Value />
+                                      </PointerImage>
+                                      <MarkerLength>25</MarkerLength>
+                                      <MarkerStyle>Wedge</MarkerStyle>
+                                      <Placement>Cross</Placement>
+                                      <Width>30</Width>
+                                    </RadialPointer>
+                                  </GaugePointers>
+                                  <Style>
+                                    <Border>
+                                      <Style>None</Style>
+                                    </Border>
+                                    <BackgroundColor>LightGrey</BackgroundColor>
+                                    <BackgroundGradientType>None</BackgroundGradientType>
+                                    <BackgroundGradientEndColor>White</BackgroundGradientEndColor>
+                                    <BackgroundHatchType>None</BackgroundHatchType>
+                                    <ShadowOffset>0pt</ShadowOffset>
+                                  </Style>
+                                  <Interval>NaN</Interval>
+                                  <IntervalOffset>NaN</IntervalOffset>
+                                  <MaximumValue>
+                                    <Value>1</Value>
+                                    <Multiplier>1</Multiplier>
+                                  </MaximumValue>
+                                  <MinimumValue>
+                                    <Value>0</Value>
+                                    <Multiplier>1</Multiplier>
+                                  </MinimumValue>
+                                  <GaugeMajorTickMarks>
+                                    <Interval>NaN</Interval>
+                                    <IntervalOffset>NaN</IntervalOffset>
+                                    <Style>
+                                      <Border>
+                                        <Color>DimGray</Color>
+                                        <Style>Solid</Style>
+                                      </Border>
+                                      <BackgroundColor>WhiteSmoke</BackgroundColor>
+                                    </Style>
+                                    <Placement>Cross</Placement>
+                                    <TickMarkImage>
+                                      <Source>External</Source>
+                                      <Value />
+                                    </TickMarkImage>
+                                    <Length>14</Length>
+                                    <Width>8</Width>
+                                    <Shape>Trapezoid</Shape>
+                                    <Hidden>true</Hidden>
+                                  </GaugeMajorTickMarks>
+                                  <GaugeMinorTickMarks>
+                                    <Interval>NaN</Interval>
+                                    <IntervalOffset>NaN</IntervalOffset>
+                                    <Style>
+                                      <Border>
+                                        <Color>DimGray</Color>
+                                        <Style>Solid</Style>
+                                      </Border>
+                                      <BackgroundColor>WhiteSmoke</BackgroundColor>
+                                    </Style>
+                                    <Placement>Cross</Placement>
+                                    <TickMarkImage>
+                                      <Source>External</Source>
+                                      <Value />
+                                    </TickMarkImage>
+                                    <Length>8</Length>
+                                    <Width>3</Width>
+                                    <Hidden>true</Hidden>
+                                  </GaugeMinorTickMarks>
+                                  <MaximumPin>
+                                    <PinLabel>
+                                      <Style>
+                                        <FontSize>12pt</FontSize>
+                                      </Style>
+                                      <DistanceFromScale>0</DistanceFromScale>
+                                    </PinLabel>
+                                    <Style>
+                                      <Border>
+                                        <Color>DimGray</Color>
+                                        <Style>Solid</Style>
+                                      </Border>
+                                      <BackgroundColor>WhiteSmoke</BackgroundColor>
+                                    </Style>
+                                    <Placement>Cross</Placement>
+                                    <TickMarkImage>
+                                      <Source>External</Source>
+                                      <Value />
+                                    </TickMarkImage>
+                                    <Length>6</Length>
+                                    <Width>6</Width>
+                                    <Shape>Circle</Shape>
+                                  </MaximumPin>
+                                  <MinimumPin>
+                                    <PinLabel>
+                                      <Style>
+                                        <FontSize>12pt</FontSize>
+                                      </Style>
+                                      <DistanceFromScale>0</DistanceFromScale>
+                                    </PinLabel>
+                                    <Style>
+                                      <Border>
+                                        <Color>DimGray</Color>
+                                        <Style>Solid</Style>
+                                      </Border>
+                                      <BackgroundColor>WhiteSmoke</BackgroundColor>
+                                    </Style>
+                                    <Placement>Cross</Placement>
+                                    <TickMarkImage>
+                                      <Source>External</Source>
+                                      <Value />
+                                    </TickMarkImage>
+                                    <Length>6</Length>
+                                    <Width>6</Width>
+                                    <Shape>Circle</Shape>
+                                  </MinimumPin>
+                                  <ScaleLabels>
+                                    <Style>
+                                      <FontSize>14pt</FontSize>
+                                      <Format>0 %</Format>
+                                    </Style>
+                                    <Interval>NaN</Interval>
+                                    <IntervalOffset>NaN</IntervalOffset>
+                                    <DistanceFromScale>0</DistanceFromScale>
+                                    <Placement>Outside</Placement>
+                                    <ShowEndLabels>true</ShowEndLabels>
+                                    <UseFontPercent>true</UseFontPercent>
+                                  </ScaleLabels>
+                                  <Width>30</Width>
+                                </RadialScale>
+                              </GaugeScales>
+                              <BackFrame>
+                                <Style>
+                                  <Border>
+                                    <Style>None</Style>
+                                  </Border>
+                                  <BackgroundColor>WhiteSmoke</BackgroundColor>
+                                  <BackgroundGradientType>None</BackgroundGradientType>
+                                  <BackgroundGradientEndColor>Gainsboro</BackgroundGradientEndColor>
+                                  <BackgroundHatchType>None</BackgroundHatchType>
+                                  <ShadowOffset>0pt</ShadowOffset>
+                                </Style>
+                                <FrameShape>CustomCircular2</FrameShape>
+                                <FrameBackground>
+                                  <Style>
+                                    <BackgroundColor>WhiteSmoke</BackgroundColor>
+                                    <BackgroundGradientType>DiagonalLeft</BackgroundGradientType>
+                                    <BackgroundGradientEndColor>Gray</BackgroundGradientEndColor>
+                                    <BackgroundHatchType>None</BackgroundHatchType>
+                                  </Style>
+                                </FrameBackground>
+                                <FrameImage>
+                                  <Source>External</Source>
+                                  <Value />
+                                </FrameImage>
+                              </BackFrame>
+                              <ClipContent>true</ClipContent>
+                              <TopImage>
+                                <Source>External</Source>
+                                <Value />
+                              </TopImage>
+                              <AspectRatio>1</AspectRatio>
+                              <Height>100</Height>
+                              <Width>100</Width>
+                              <ActionInfo>
+                                <Actions>
+                                  <Action>
+                                    <Drillthrough>
+                                      <ReportName>Control Abonos Mantenimiento</ReportName>
+                                    </Drillthrough>
+                                  </Action>
+                                </Actions>
+                              </ActionInfo>
+                            </RadialGauge>
+                          </RadialGauges>
+                          <GaugeLabels>
+                            <GaugeLabel Name="GaugeLabel1">
+                              <Text>=Fields!Analista_Funcional.Value</Text>
+                              <ResizeMode>None</ResizeMode>
+                              <TextShadowOffset>0pt</TextShadowOffset>
+                              <Style>
+                                <Border>
+                                  <Style>None</Style>
+                                </Border>
+                                <BackgroundColor>#00ffffff</BackgroundColor>
+                                <BackgroundGradientType>None</BackgroundGradientType>
+                                <BackgroundGradientEndColor>#00ffffff</BackgroundGradientEndColor>
+                                <FontFamily>Segoe UI Light</FontFamily>
+                                <FontSize>14pt</FontSize>
+                                <FontWeight>Bold</FontWeight>
+                                <TextAlign>Center</TextAlign>
+                                <VerticalAlign>Middle</VerticalAlign>
+                                <Color>#333333</Color>
+                                <ShadowOffset>0pt</ShadowOffset>
+                              </Style>
+                              <Top>59.9999961853027</Top>
+                              <Left>10.2702684402466</Left>
+                              <Height>20</Height>
+                              <Width>80</Width>
+                              <ParentItem>RadialGauges.RadialGauge1</ParentItem>
+                            </GaugeLabel>
+                            <GaugeLabel Name="GaugeLabel2">
+                              <Text>Horas Consumidas</Text>
+                              <ResizeMode>None</ResizeMode>
+                              <TextShadowOffset>0pt</TextShadowOffset>
+                              <Style>
+                                <Border>
+                                  <Style>None</Style>
+                                </Border>
+                                <BackgroundColor>#00ffffff</BackgroundColor>
+                                <BackgroundGradientType>None</BackgroundGradientType>
+                                <BackgroundGradientEndColor>#00ffffff</BackgroundGradientEndColor>
+                                <FontFamily>Segoe UI Light</FontFamily>
+                                <TextAlign>Center</TextAlign>
+                                <VerticalAlign>Middle</VerticalAlign>
+                                <Color>#333333</Color>
+                                <ShadowOffset>0pt</ShadowOffset>
+                              </Style>
+                              <Top>53.5135078430176</Top>
+                              <Left>10.2702684402466</Left>
+                              <Height>10</Height>
+                              <Width>80</Width>
+                              <ParentItem>RadialGauges.RadialGauge1</ParentItem>
+                            </GaugeLabel>
+                            <GaugeLabel Name="GaugeLabel3">
+                              <Text>=Fields!Abono_Análisis.Value</Text>
+                              <ResizeMode>None</ResizeMode>
+                              <TextShadowOffset>0pt</TextShadowOffset>
+                              <Style>
+                                <Border>
+                                  <Style>None</Style>
+                                </Border>
+                                <BackgroundColor>#00ffffff</BackgroundColor>
+                                <BackgroundGradientType>None</BackgroundGradientType>
+                                <BackgroundGradientEndColor>#00ffffff</BackgroundGradientEndColor>
+                                <FontFamily>Segoe UI Light</FontFamily>
+                                <FontSize>14pt</FontSize>
+                                <FontWeight>Bold</FontWeight>
+                                <TextAlign>Center</TextAlign>
+                                <VerticalAlign>Middle</VerticalAlign>
+                                <Color>#333333</Color>
+                                <ShadowOffset>0pt</ShadowOffset>
+                              </Style>
+                              <Top>32.432430267334</Top>
+                              <Left>10.810809135437</Left>
+                              <Height>20</Height>
+                              <Width>80</Width>
+                              <ParentItem>RadialGauges.RadialGauge1</ParentItem>
+                            </GaugeLabel>
+                            <GaugeLabel Name="GaugeLabel4">
+                              <Text>Abono</Text>
+                              <ResizeMode>None</ResizeMode>
+                              <TextShadowOffset>0pt</TextShadowOffset>
+                              <Style>
+                                <Border>
+                                  <Style>None</Style>
+                                </Border>
+                                <BackgroundColor>#00ffffff</BackgroundColor>
+                                <BackgroundGradientType>None</BackgroundGradientType>
+                                <BackgroundGradientEndColor>#00ffffff</BackgroundGradientEndColor>
+                                <FontFamily>Segoe UI Light</FontFamily>
+                                <TextAlign>Center</TextAlign>
+                                <VerticalAlign>Middle</VerticalAlign>
+                                <Color>#333333</Color>
+                                <ShadowOffset>0pt</ShadowOffset>
+                              </Style>
+                              <Top>28.1081066131592</Top>
+                              <Left>9.18918704986572</Left>
+                              <Height>10</Height>
+                              <Width>80</Width>
+                              <ParentItem>RadialGauges.RadialGauge1</ParentItem>
+                            </GaugeLabel>
+                          </GaugeLabels>
+                          <AutoLayout>true</AutoLayout>
+                          <BackFrame>
+                            <Style>
+                              <Border>
+                                <Style>None</Style>
+                              </Border>
+                              <BackgroundColor>Gainsboro</BackgroundColor>
+                              <BackgroundGradientType>None</BackgroundGradientType>
+                              <BackgroundGradientEndColor>Gray</BackgroundGradientEndColor>
+                              <BackgroundHatchType>None</BackgroundHatchType>
+                              <ShadowOffset>0pt</ShadowOffset>
+                            </Style>
+                            <FrameBackground>
+                              <Style>
+                                <BackgroundColor>Silver</BackgroundColor>
+                                <BackgroundGradientType>DiagonalLeft</BackgroundGradientType>
+                                <BackgroundGradientEndColor>Gray</BackgroundGradientEndColor>
+                                <BackgroundHatchType>None</BackgroundHatchType>
+                              </Style>
+                            </FrameBackground>
+                            <FrameImage>
+                              <Source>External</Source>
+                              <Value />
+                            </FrameImage>
+                          </BackFrame>
+                          <TopImage>
+                            <Source>External</Source>
+                            <Value />
+                          </TopImage>
+                          <DataSetName>Control_Abonos</DataSetName>
+                          <Style>
+                            <Border>
+                              <Style>Solid</Style>
+                            </Border>
+                            <BackgroundColor>White</BackgroundColor>
+                          </Style>
+                        </GaugePanel>
+                      </CellContents>
+                    </TablixCell>
+                    <TablixCell>
+                      <CellContents>
+                        <GaugePanel Name="GaugePanel2">
+                          <RadialGauges>
+                            <RadialGauge Name="RadialGauge1">
+                              <GaugeScales>
+                                <RadialScale Name="RadialScale1">
+                                  <GaugePointers>
+                                    <RadialPointer Name="RadialPointer1">
+                                      <Type>Bar</Type>
+                                      <PointerCap>
+                                        <Style>
+                                          <BackgroundColor>White</BackgroundColor>
+                                          <BackgroundGradientType>DiagonalLeft</BackgroundGradientType>
+                                          <BackgroundGradientEndColor>DimGray</BackgroundGradientEndColor>
+                                          <FontFamily>Arial</FontFamily>
+                                          <BackgroundHatchType>None</BackgroundHatchType>
+                                        </Style>
+                                        <CapImage>
+                                          <OffsetX>0pt</OffsetX>
+                                          <OffsetY>0pt</OffsetY>
+                                          <Source>External</Source>
+                                          <Value />
+                                        </CapImage>
+                                        <OnTop>true</OnTop>
+                                        <CapStyle>RoundedWithWideIndentation</CapStyle>
+                                        <Width>33</Width>
+                                      </PointerCap>
+                                      <NeedleStyle>Tapered</NeedleStyle>
+                                      <Style>
+                                        <Border>
+                                          <Style>None</Style>
+                                        </Border>
+                                        <BackgroundColor>=IIF(Fields!Abono_Desarrollo.Value &lt;&gt; 0 and Fields!Desarrollo.Value/Fields!Abono_Desarrollo.Value &gt;= 1,"IndianRed"
+,iif(Fields!Abono_Desarrollo.Value &lt;&gt; 0 and Fields!Desarrollo.Value/Fields!Abono_Desarrollo.Value &gt;= 0.7 and Fields!Desarrollo.Value/Fields!Abono_Desarrollo.Value &lt; 1,"LightSalmon", 
+"#01b8aa"))</BackgroundColor>
+                                        <BackgroundGradientType>None</BackgroundGradientType>
+                                        <BackgroundGradientEndColor>Orange</BackgroundGradientEndColor>
+                                        <BackgroundHatchType>None</BackgroundHatchType>
+                                        <ShadowOffset>0pt</ShadowOffset>
+                                      </Style>
+                                      <GaugeInputValue>
+                                        <Value>=iif(Fields!Abono_Desarrollo.Value &lt;&gt; 0, Fields!Desarrollo.Value / Fields!Abono_Desarrollo.Value, 0)</Value>
+                                        <Multiplier>1</Multiplier>
+                                      </GaugeInputValue>
+                                      <PointerImage>
+                                        <OffsetX>0pt</OffsetX>
+                                        <OffsetY>0pt</OffsetY>
+                                        <Source>External</Source>
+                                        <Value />
+                                      </PointerImage>
+                                      <MarkerLength>25</MarkerLength>
+                                      <MarkerStyle>Wedge</MarkerStyle>
+                                      <Placement>Cross</Placement>
+                                      <Width>30</Width>
+                                    </RadialPointer>
+                                  </GaugePointers>
+                                  <Style>
+                                    <Border>
+                                      <Style>None</Style>
+                                    </Border>
+                                    <BackgroundColor>LightGrey</BackgroundColor>
+                                    <BackgroundGradientType>None</BackgroundGradientType>
+                                    <BackgroundGradientEndColor>White</BackgroundGradientEndColor>
+                                    <BackgroundHatchType>None</BackgroundHatchType>
+                                    <ShadowOffset>0pt</ShadowOffset>
+                                  </Style>
+                                  <Interval>NaN</Interval>
+                                  <IntervalOffset>NaN</IntervalOffset>
+                                  <MaximumValue>
+                                    <Value>1</Value>
+                                    <Multiplier>1</Multiplier>
+                                  </MaximumValue>
+                                  <MinimumValue>
+                                    <Value>0</Value>
+                                    <Multiplier>1</Multiplier>
+                                  </MinimumValue>
+                                  <GaugeMajorTickMarks>
+                                    <Interval>NaN</Interval>
+                                    <IntervalOffset>NaN</IntervalOffset>
+                                    <Style>
+                                      <Border>
+                                        <Color>DimGray</Color>
+                                        <Style>Solid</Style>
+                                      </Border>
+                                      <BackgroundColor>WhiteSmoke</BackgroundColor>
+                                    </Style>
+                                    <Placement>Cross</Placement>
+                                    <TickMarkImage>
+                                      <Source>External</Source>
+                                      <Value />
+                                    </TickMarkImage>
+                                    <Length>14</Length>
+                                    <Width>8</Width>
+                                    <Shape>Trapezoid</Shape>
+                                    <Hidden>true</Hidden>
+                                  </GaugeMajorTickMarks>
+                                  <GaugeMinorTickMarks>
+                                    <Interval>NaN</Interval>
+                                    <IntervalOffset>NaN</IntervalOffset>
+                                    <Style>
+                                      <Border>
+                                        <Color>DimGray</Color>
+                                        <Style>Solid</Style>
+                                      </Border>
+                                      <BackgroundColor>WhiteSmoke</BackgroundColor>
+                                    </Style>
+                                    <Placement>Cross</Placement>
+                                    <TickMarkImage>
+                                      <Source>External</Source>
+                                      <Value />
+                                    </TickMarkImage>
+                                    <Length>8</Length>
+                                    <Width>3</Width>
+                                    <Hidden>true</Hidden>
+                                  </GaugeMinorTickMarks>
+                                  <MaximumPin>
+                                    <PinLabel>
+                                      <Style>
+                                        <FontSize>12pt</FontSize>
+                                      </Style>
+                                      <DistanceFromScale>0</DistanceFromScale>
+                                    </PinLabel>
+                                    <Style>
+                                      <Border>
+                                        <Color>DimGray</Color>
+                                        <Style>Solid</Style>
+                                      </Border>
+                                      <BackgroundColor>WhiteSmoke</BackgroundColor>
+                                    </Style>
+                                    <Placement>Cross</Placement>
+                                    <TickMarkImage>
+                                      <Source>External</Source>
+                                      <Value />
+                                    </TickMarkImage>
+                                    <Length>6</Length>
+                                    <Width>6</Width>
+                                    <Shape>Circle</Shape>
+                                  </MaximumPin>
+                                  <MinimumPin>
+                                    <PinLabel>
+                                      <Style>
+                                        <FontSize>12pt</FontSize>
+                                      </Style>
+                                      <DistanceFromScale>0</DistanceFromScale>
+                                    </PinLabel>
+                                    <Style>
+                                      <Border>
+                                        <Color>DimGray</Color>
+                                        <Style>Solid</Style>
+                                      </Border>
+                                      <BackgroundColor>WhiteSmoke</BackgroundColor>
+                                    </Style>
+                                    <Placement>Cross</Placement>
+                                    <TickMarkImage>
+                                      <Source>External</Source>
+                                      <Value />
+                                    </TickMarkImage>
+                                    <Length>6</Length>
+                                    <Width>6</Width>
+                                    <Shape>Circle</Shape>
+                                  </MinimumPin>
+                                  <ScaleLabels>
+                                    <Style>
+                                      <FontSize>14pt</FontSize>
+                                      <Format>0%</Format>
+                                    </Style>
+                                    <Interval>NaN</Interval>
+                                    <IntervalOffset>NaN</IntervalOffset>
+                                    <DistanceFromScale>0</DistanceFromScale>
+                                    <Placement>Outside</Placement>
+                                    <ShowEndLabels>true</ShowEndLabels>
+                                    <UseFontPercent>true</UseFontPercent>
+                                  </ScaleLabels>
+                                  <Width>30</Width>
+                                </RadialScale>
+                              </GaugeScales>
+                              <BackFrame>
+                                <Style>
+                                  <Border>
+                                    <Style>None</Style>
+                                  </Border>
+                                  <BackgroundColor>WhiteSmoke</BackgroundColor>
+                                  <BackgroundGradientType>None</BackgroundGradientType>
+                                  <BackgroundGradientEndColor>Gainsboro</BackgroundGradientEndColor>
+                                  <BackgroundHatchType>None</BackgroundHatchType>
+                                  <ShadowOffset>0pt</ShadowOffset>
+                                </Style>
+                                <FrameShape>CustomCircular2</FrameShape>
+                                <FrameBackground>
+                                  <Style>
+                                    <BackgroundColor>WhiteSmoke</BackgroundColor>
+                                    <BackgroundGradientType>DiagonalLeft</BackgroundGradientType>
+                                    <BackgroundGradientEndColor>Gray</BackgroundGradientEndColor>
+                                    <BackgroundHatchType>None</BackgroundHatchType>
+                                  </Style>
+                                </FrameBackground>
+                                <FrameImage>
+                                  <Source>External</Source>
+                                  <Value />
+                                </FrameImage>
+                              </BackFrame>
+                              <ClipContent>true</ClipContent>
+                              <TopImage>
+                                <Source>External</Source>
+                                <Value />
+                              </TopImage>
+                              <AspectRatio>1</AspectRatio>
+                              <Height>100</Height>
+                              <Width>100</Width>
+                              <ActionInfo>
+                                <Actions>
+                                  <Action>
+                                    <Drillthrough>
+                                      <ReportName>Control Abonos Mantenimiento</ReportName>
+                                    </Drillthrough>
+                                  </Action>
+                                </Actions>
+                              </ActionInfo>
+                            </RadialGauge>
+                          </RadialGauges>
+                          <GaugeLabels>
+                            <GaugeLabel Name="GaugeLabel1">
+                              <Text>=Fields!Desarrollo.Value</Text>
+                              <ResizeMode>None</ResizeMode>
+                              <TextShadowOffset>0pt</TextShadowOffset>
+                              <Style>
+                                <Border>
+                                  <Style>None</Style>
+                                </Border>
+                                <BackgroundColor>#00ffffff</BackgroundColor>
+                                <BackgroundGradientType>None</BackgroundGradientType>
+                                <BackgroundGradientEndColor>#00ffffff</BackgroundGradientEndColor>
+                                <FontFamily>Segoe UI Light</FontFamily>
+                                <FontSize>14pt</FontSize>
+                                <FontWeight>Bold</FontWeight>
+                                <TextAlign>Center</TextAlign>
+                                <VerticalAlign>Middle</VerticalAlign>
+                                <Color>#333333</Color>
+                                <ShadowOffset>0pt</ShadowOffset>
+                              </Style>
+                              <Top>56.7567520141602</Top>
+                              <Left>9.99999904632568</Left>
+                              <Height>20</Height>
+                              <Width>80</Width>
+                              <ParentItem>RadialGauges.RadialGauge1</ParentItem>
+                            </GaugeLabel>
+                            <GaugeLabel Name="GaugeLabel2">
+                              <Text>Horas Consumidas</Text>
+                              <ResizeMode>None</ResizeMode>
+                              <TextShadowOffset>0pt</TextShadowOffset>
+                              <Style>
+                                <Border>
+                                  <Style>None</Style>
+                                </Border>
+                                <BackgroundColor>#00ffffff</BackgroundColor>
+                                <BackgroundGradientType>None</BackgroundGradientType>
+                                <BackgroundGradientEndColor>#00ffffff</BackgroundGradientEndColor>
+                                <FontFamily>Segoe UI Light</FontFamily>
+                                <TextAlign>Center</TextAlign>
+                                <VerticalAlign>Middle</VerticalAlign>
+                                <Color>#333333</Color>
+                                <ShadowOffset>0pt</ShadowOffset>
+                              </Style>
+                              <Top>51.3513488769531</Top>
+                              <Left>10.5405387878418</Left>
+                              <Height>10</Height>
+                              <Width>80</Width>
+                              <ParentItem>RadialGauges.RadialGauge1</ParentItem>
+                            </GaugeLabel>
+                            <GaugeLabel Name="GaugeLabel3">
+                              <Text>=Fields!Abono_Desarrollo.Value</Text>
+                              <ResizeMode>None</ResizeMode>
+                              <TextShadowOffset>0pt</TextShadowOffset>
+                              <Style>
+                                <Border>
+                                  <Style>None</Style>
+                                </Border>
+                                <BackgroundColor>#00ffffff</BackgroundColor>
+                                <BackgroundGradientType>None</BackgroundGradientType>
+                                <BackgroundGradientEndColor>#00ffffff</BackgroundGradientEndColor>
+                                <FontFamily>Segoe UI Light</FontFamily>
+                                <FontSize>14pt</FontSize>
+                                <FontWeight>Bold</FontWeight>
+                                <TextAlign>Center</TextAlign>
+                                <VerticalAlign>Middle</VerticalAlign>
+                                <Color>#333333</Color>
+                                <ShadowOffset>0pt</ShadowOffset>
+                              </Style>
+                              <Top>34.0540504455566</Top>
+                              <Left>9.99999904632568</Left>
+                              <Height>20</Height>
+                              <Width>80</Width>
+                              <ParentItem>RadialGauges.RadialGauge1</ParentItem>
+                            </GaugeLabel>
+                            <GaugeLabel Name="GaugeLabel4">
+                              <Text>Abono</Text>
+                              <ResizeMode>None</ResizeMode>
+                              <TextShadowOffset>0pt</TextShadowOffset>
+                              <Style>
+                                <Border>
+                                  <Style>None</Style>
+                                </Border>
+                                <BackgroundColor>#00ffffff</BackgroundColor>
+                                <BackgroundGradientType>None</BackgroundGradientType>
+                                <BackgroundGradientEndColor>#00ffffff</BackgroundGradientEndColor>
+                                <FontFamily>Segoe UI Light</FontFamily>
+                                <TextAlign>Center</TextAlign>
+                                <VerticalAlign>Middle</VerticalAlign>
+                                <Color>#333333</Color>
+                                <ShadowOffset>0pt</ShadowOffset>
+                              </Style>
+                              <Top>28.1081066131592</Top>
+                              <Left>8.91891765594482</Left>
+                              <Height>10</Height>
+                              <Width>80</Width>
+                              <ParentItem>RadialGauges.RadialGauge1</ParentItem>
+                            </GaugeLabel>
+                          </GaugeLabels>
+                          <AutoLayout>true</AutoLayout>
+                          <BackFrame>
+                            <Style>
+                              <Border>
+                                <Style>None</Style>
+                              </Border>
+                              <BackgroundColor>Gainsboro</BackgroundColor>
+                              <BackgroundGradientType>None</BackgroundGradientType>
+                              <BackgroundGradientEndColor>Gray</BackgroundGradientEndColor>
+                              <BackgroundHatchType>None</BackgroundHatchType>
+                              <ShadowOffset>0pt</ShadowOffset>
+                            </Style>
+                            <FrameBackground>
+                              <Style>
+                                <BackgroundColor>Silver</BackgroundColor>
+                                <BackgroundGradientType>DiagonalLeft</BackgroundGradientType>
+                                <BackgroundGradientEndColor>Gray</BackgroundGradientEndColor>
+                                <BackgroundHatchType>None</BackgroundHatchType>
+                              </Style>
+                            </FrameBackground>
+                            <FrameImage>
+                              <Source>External</Source>
+                              <Value />
+                            </FrameImage>
+                          </BackFrame>
+                          <TopImage>
+                            <Source>External</Source>
+                            <Value />
+                          </TopImage>
+                          <DataSetName>Control_Abonos</DataSetName>
+                          <Style>
+                            <Border>
+                              <Style>Solid</Style>
+                            </Border>
+                            <TopBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </TopBorder>
+                            <BottomBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </BottomBorder>
+                            <LeftBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </LeftBorder>
+                            <RightBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </RightBorder>
+                            <BackgroundColor>White</BackgroundColor>
+                          </Style>
+                        </GaugePanel>
+                      </CellContents>
+                    </TablixCell>
+                    <TablixCell>
+                      <CellContents>
+                        <GaugePanel Name="GaugePanel6">
+                          <LinearGauges>
+                            <LinearGauge Name="LinearGauge1">
+                              <GaugeScales>
+                                <LinearScale Name="LinearScale1">
+                                  <GaugePointers>
+                                    <LinearPointer Name="LinearPointer1">
+                                      <Type>Bar</Type>
+                                      <Thermometer>
+                                        <Style />
+                                      </Thermometer>
+                                      <Style>
+                                        <Border>
+                                          <Style>None</Style>
+                                        </Border>
+                                        <BackgroundColor>#01b8aa</BackgroundColor>
+                                        <BackgroundGradientType>None</BackgroundGradientType>
+                                        <BackgroundGradientEndColor>Orange</BackgroundGradientEndColor>
+                                        <BackgroundHatchType>None</BackgroundHatchType>
+                                        <ShadowOffset>0pt</ShadowOffset>
+                                      </Style>
+                                      <GaugeInputValue>
+                                        <Value>=Fields!Projec_Leader.Value</Value>
+                                        <Multiplier>1</Multiplier>
+                                      </GaugeInputValue>
+                                      <PointerImage>
+                                        <OffsetX>0pt</OffsetX>
+                                        <OffsetY>0pt</OffsetY>
+                                        <Source>External</Source>
+                                        <Value />
+                                      </PointerImage>
+                                      <MarkerLength>25</MarkerLength>
+                                      <MarkerStyle>Wedge</MarkerStyle>
+                                      <Placement>Cross</Placement>
+                                      <Width>30</Width>
+                                    </LinearPointer>
+                                  </GaugePointers>
+                                  <Style>
+                                    <Border>
+                                      <Style>None</Style>
+                                    </Border>
+                                    <BackgroundColor>LightGrey</BackgroundColor>
+                                    <BackgroundGradientType>None</BackgroundGradientType>
+                                    <BackgroundGradientEndColor>White</BackgroundGradientEndColor>
+                                    <BackgroundHatchType>None</BackgroundHatchType>
+                                    <ShadowOffset>0pt</ShadowOffset>
+                                  </Style>
+                                  <Interval>=Fields!Projec_Leader.Value</Interval>
+                                  <IntervalOffset>NaN</IntervalOffset>
+                                  <MaximumValue>
+                                    <Value>100</Value>
+                                    <Multiplier>1</Multiplier>
+                                  </MaximumValue>
+                                  <MinimumValue>
+                                    <Value>0</Value>
+                                    <Multiplier>1</Multiplier>
+                                  </MinimumValue>
+                                  <GaugeMajorTickMarks>
+                                    <Interval>NaN</Interval>
+                                    <IntervalOffset>NaN</IntervalOffset>
+                                    <Style>
+                                      <Border>
+                                        <Color>DimGray</Color>
+                                        <Style>None</Style>
+                                      </Border>
+                                      <BackgroundColor>DimGray</BackgroundColor>
+                                    </Style>
+                                    <Placement>Cross</Placement>
+                                    <TickMarkImage>
+                                      <Source>External</Source>
+                                      <Value />
+                                    </TickMarkImage>
+                                    <Length>15</Length>
+                                    <Width>2</Width>
+                                    <Hidden>true</Hidden>
+                                  </GaugeMajorTickMarks>
+                                  <GaugeMinorTickMarks>
+                                    <Interval>NaN</Interval>
+                                    <IntervalOffset>NaN</IntervalOffset>
+                                    <Style>
+                                      <Border>
+                                        <Color>DimGray</Color>
+                                        <Style>None</Style>
+                                      </Border>
+                                      <BackgroundColor>DimGray</BackgroundColor>
+                                    </Style>
+                                    <Placement>Cross</Placement>
+                                    <TickMarkImage>
+                                      <Source>External</Source>
+                                      <Value />
+                                    </TickMarkImage>
+                                    <Length>9</Length>
+                                    <Width>1</Width>
+                                    <Hidden>true</Hidden>
+                                  </GaugeMinorTickMarks>
+                                  <MaximumPin>
+                                    <PinLabel>
+                                      <Style>
+                                        <FontSize>12pt</FontSize>
+                                      </Style>
+                                      <DistanceFromScale>0</DistanceFromScale>
+                                    </PinLabel>
+                                    <Style>
+                                      <Border>
+                                        <Color>DimGray</Color>
+                                        <Style>Solid</Style>
+                                      </Border>
+                                      <BackgroundColor>WhiteSmoke</BackgroundColor>
+                                    </Style>
+                                    <Placement>Cross</Placement>
+                                    <TickMarkImage>
+                                      <Source>External</Source>
+                                      <Value />
+                                    </TickMarkImage>
+                                    <Length>6</Length>
+                                    <Width>6</Width>
+                                    <Shape>Circle</Shape>
+                                  </MaximumPin>
+                                  <MinimumPin>
+                                    <PinLabel>
+                                      <Style>
+                                        <FontSize>12pt</FontSize>
+                                      </Style>
+                                      <DistanceFromScale>0</DistanceFromScale>
+                                    </PinLabel>
+                                    <Style>
+                                      <Border>
+                                        <Color>DimGray</Color>
+                                        <Style>Solid</Style>
+                                      </Border>
+                                      <BackgroundColor>WhiteSmoke</BackgroundColor>
+                                    </Style>
+                                    <Placement>Cross</Placement>
+                                    <TickMarkImage>
+                                      <Source>External</Source>
+                                      <Value />
+                                    </TickMarkImage>
+                                    <Length>6</Length>
+                                    <Width>6</Width>
+                                    <Shape>Circle</Shape>
+                                  </MinimumPin>
+                                  <ScaleLabels>
+                                    <Style>
+                                      <FontSize>14pt</FontSize>
+                                      <Color>#404040</Color>
+                                    </Style>
+                                    <Interval>NaN</Interval>
+                                    <IntervalOffset>NaN</IntervalOffset>
+                                    <ShowEndLabels>true</ShowEndLabels>
+                                    <Hidden>true</Hidden>
+                                    <UseFontPercent>true</UseFontPercent>
+                                  </ScaleLabels>
+                                  <TickMarksOnTop>true</TickMarksOnTop>
+                                  <Width>30</Width>
+                                </LinearScale>
+                              </GaugeScales>
+                              <BackFrame>
+                                <Style>
+                                  <Border>
+                                    <Style>None</Style>
+                                  </Border>
+                                  <BackgroundColor>WhiteSmoke</BackgroundColor>
+                                  <BackgroundGradientType>HorizontalCenter</BackgroundGradientType>
+                                  <BackgroundGradientEndColor>DarkGray</BackgroundGradientEndColor>
+                                  <BackgroundHatchType>None</BackgroundHatchType>
+                                  <ShadowOffset>0pt</ShadowOffset>
+                                </Style>
+                                <FrameShape>RoundedRectangular</FrameShape>
+                                <FrameBackground>
+                                  <Style>
+                                    <BackgroundColor>Gainsboro</BackgroundColor>
+                                    <BackgroundGradientType>DiagonalLeft</BackgroundGradientType>
+                                    <BackgroundGradientEndColor>WhiteSmoke</BackgroundGradientEndColor>
+                                    <BackgroundHatchType>None</BackgroundHatchType>
+                                  </Style>
+                                </FrameBackground>
+                                <FrameImage>
+                                  <Source>External</Source>
+                                  <Value />
+                                </FrameImage>
+                              </BackFrame>
+                              <ClipContent>true</ClipContent>
+                              <TopImage>
+                                <Source>External</Source>
+                                <Value />
+                              </TopImage>
+                              <AspectRatio>NaN</AspectRatio>
+                              <Height>100</Height>
+                              <Width>100</Width>
+                              <ActionInfo>
+                                <Actions>
+                                  <Action>
+                                    <Drillthrough>
+                                      <ReportName>Control Abonos Mantenimiento</ReportName>
+                                    </Drillthrough>
+                                  </Action>
+                                </Actions>
+                              </ActionInfo>
+                            </LinearGauge>
+                          </LinearGauges>
+                          <GaugeLabels>
+                            <GaugeLabel Name="GaugeLabel1">
+                              <Text>=Fields!Projec_Leader.Value</Text>
+                              <TextShadowOffset>0pt</TextShadowOffset>
+                              <Style>
+                                <Border>
+                                  <Style>None</Style>
+                                </Border>
+                                <BackgroundColor>#00ffffff</BackgroundColor>
+                                <BackgroundGradientType>None</BackgroundGradientType>
+                                <BackgroundGradientEndColor>#00ffffff</BackgroundGradientEndColor>
+                                <FontSize>24pt</FontSize>
+                                <Color>#404040</Color>
+                                <ShadowOffset>0pt</ShadowOffset>
+                              </Style>
+                              <Top>29.1891860961914</Top>
+                              <Left>35.2272720336914</Left>
+                              <Height>40</Height>
+                              <Width>30</Width>
+                              <ParentItem>LinearGauges.LinearGauge1</ParentItem>
+                            </GaugeLabel>
+                          </GaugeLabels>
+                          <AutoLayout>true</AutoLayout>
+                          <BackFrame>
+                            <Style>
+                              <Border>
+                                <Style>None</Style>
+                              </Border>
+                              <BackgroundColor>Gainsboro</BackgroundColor>
+                              <BackgroundGradientType>None</BackgroundGradientType>
+                              <BackgroundGradientEndColor>Gray</BackgroundGradientEndColor>
+                              <BackgroundHatchType>None</BackgroundHatchType>
+                              <ShadowOffset>0pt</ShadowOffset>
+                            </Style>
+                            <FrameBackground>
+                              <Style>
+                                <BackgroundColor>Silver</BackgroundColor>
+                                <BackgroundGradientType>DiagonalLeft</BackgroundGradientType>
+                                <BackgroundGradientEndColor>Gray</BackgroundGradientEndColor>
+                                <BackgroundHatchType>None</BackgroundHatchType>
+                              </Style>
+                            </FrameBackground>
+                            <FrameImage>
+                              <Source>External</Source>
+                              <Value />
+                            </FrameImage>
+                          </BackFrame>
+                          <TopImage>
+                            <Source>External</Source>
+                            <Value />
+                          </TopImage>
+                          <DataSetName>Control_Abonos</DataSetName>
+                          <Style>
+                            <Border>
+                              <Style>Solid</Style>
+                            </Border>
+                            <TopBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </TopBorder>
+                            <BottomBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </BottomBorder>
+                            <LeftBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </LeftBorder>
+                            <RightBorder>
+                              <Color>Black</Color>
+                              <Style>Solid</Style>
+                              <Width>1pt</Width>
+                            </RightBorder>
+                            <BackgroundColor>White</BackgroundColor>
+                          </Style>
+                        </GaugePanel>
+                      </CellContents>
+                    </TablixCell>
+                  </TablixCells>
+                </TablixRow>
+              </TablixRows>
+            </TablixBody>
+            <TablixColumnHierarchy>
+              <TablixMembers>
+                <TablixMember />
+                <TablixMember />
+                <TablixMember />
+                <TablixMember />
+              </TablixMembers>
+            </TablixColumnHierarchy>
+            <TablixRowHierarchy>
+              <TablixMembers>
+                <TablixMember>
+                  <KeepWithGroup>After</KeepWithGroup>
+                </TablixMember>
+                <TablixMember>
+                  <Group Name="Detalles" />
+                </TablixMember>
+              </TablixMembers>
+            </TablixRowHierarchy>
+            <RepeatColumnHeaders>true</RepeatColumnHeaders>
+            <RepeatRowHeaders>true</RepeatRowHeaders>
+            <FixedColumnHeaders>true</FixedColumnHeaders>
+            <FixedRowHeaders>true</FixedRowHeaders>
+            <KeepTogether>true</KeepTogether>
+            <DataSetName>Control_Abonos</DataSetName>
+            <Height>5.61855cm</Height>
+            <Width>26.61584cm</Width>
+            <Style>
+              <Border>
+                <Style>None</Style>
+              </Border>
+            </Style>
+          </Tablix>
+        </ReportItems>
+        <Height>2.21203in</Height>
+        <Style />
+      </Body>
+      <Width>10.47868in</Width>
+      <Page>
+        <PageHeight>29.7cm</PageHeight>
+        <PageWidth>21cm</PageWidth>
+        <LeftMargin>2cm</LeftMargin>
+        <RightMargin>2cm</RightMargin>
+        <TopMargin>2cm</TopMargin>
+        <BottomMargin>2cm</BottomMargin>
+        <ColumnSpacing>0.13cm</ColumnSpacing>
+        <Style />
+      </Page>
+    </ReportSection>
+  </ReportSections>
+  <ReportParameters>
+    <ReportParameter Name="FECHA_DESDE">
+      <DataType>DateTime</DataType>
+      <DefaultValue>
+        <Values>
+          <Value>=DateSerial(Year(Now()), Month(Now()), "1")</Value>
+        </Values>
+      </DefaultValue>
+      <Prompt>Fecha Desde:</Prompt>
+    </ReportParameter>
+    <ReportParameter Name="FECHA_HASTA">
+      <DataType>DateTime</DataType>
+      <DefaultValue>
+        <Values>
+          <Value>=DateSerial(Year(Now()), Month(Now()), "1").AddMonths(1).AddDays(-1)</Value>
+        </Values>
+      </DefaultValue>
+      <Prompt>Fecha Hasta:</Prompt>
+    </ReportParameter>
+  </ReportParameters>
+  <ReportParametersLayout>
+    <GridLayoutDefinition>
+      <NumberOfColumns>4</NumberOfColumns>
+      <NumberOfRows>2</NumberOfRows>
+      <CellDefinitions>
+        <CellDefinition>
+          <ColumnIndex>0</ColumnIndex>
+          <RowIndex>0</RowIndex>
+          <ParameterName>FECHA_DESDE</ParameterName>
+        </CellDefinition>
+        <CellDefinition>
+          <ColumnIndex>1</ColumnIndex>
+          <RowIndex>0</RowIndex>
+          <ParameterName>FECHA_HASTA</ParameterName>
+        </CellDefinition>
+      </CellDefinitions>
+    </GridLayoutDefinition>
+  </ReportParametersLayout>
+  <rd:ReportUnitType>Cm</rd:ReportUnitType>
+  <rd:ReportID>e3d1ea67-cdad-4313-828e-47df3d6f371a</rd:ReportID>
+</Report>

@@ -1,0 +1,30 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.27428.2037
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{F14B399A-7131-4C87-9E4B-1186C45EF12D}") = "JIRA Internal Reports", "JIRA Internal Reports\JIRA Internal Reports.rptproj", "{D286CB9E-B4B2-40E6-8FCA-ECD1F69ADE59}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Default = Debug|Default
+		DebugLocal|Default = DebugLocal|Default
+		Release|Default = Release|Default
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D286CB9E-B4B2-40E6-8FCA-ECD1F69ADE59}.Debug|Default.ActiveCfg = Debug
+		{D286CB9E-B4B2-40E6-8FCA-ECD1F69ADE59}.Debug|Default.Build.0 = Debug
+		{D286CB9E-B4B2-40E6-8FCA-ECD1F69ADE59}.Debug|Default.Deploy.0 = Debug
+		{D286CB9E-B4B2-40E6-8FCA-ECD1F69ADE59}.DebugLocal|Default.ActiveCfg = DebugLocal
+		{D286CB9E-B4B2-40E6-8FCA-ECD1F69ADE59}.DebugLocal|Default.Build.0 = DebugLocal
+		{D286CB9E-B4B2-40E6-8FCA-ECD1F69ADE59}.Release|Default.ActiveCfg = Release
+		{D286CB9E-B4B2-40E6-8FCA-ECD1F69ADE59}.Release|Default.Build.0 = Release
+		{D286CB9E-B4B2-40E6-8FCA-ECD1F69ADE59}.Release|Default.Deploy.0 = Release
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {3AB8CC44-FFB7-4297-B65A-396E09EED4E7}
+	EndGlobalSection
+EndGlobal

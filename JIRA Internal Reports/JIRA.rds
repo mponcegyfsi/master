@@ -1,0 +1,8 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<RptDataSource xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" Name="JIRA">
+  <ConnectionProperties>
+    <Extension>SQL</Extension>
+    <ConnectString>Data Source=GYF14\SQL2012;Initial Catalog=JIRA</ConnectString>
+  </ConnectionProperties>
+  <DataSourceID>4530b8e2-0ef4-4c28-88ae-07951c179bff</DataSourceID>
+</RptDataSource>
